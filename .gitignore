@@ -1,0 +1,17 @@
+*.[oa]
+*.beam
+*.swp
+ebin
+.eunit/
+deps/
+src/pmap.hrl
+src/pmap.erl
+src/pmap_clnt.erl
+src/pmap_xdr.erl
+src/rpc.hrl
+src/rpc_client.hrl
+src/rpc_server.hrl
+src/rpc_clnt.erl
+src/rpc_xdr.erl
+src/xdr_parse.erl
+rebar
