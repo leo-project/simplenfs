@@ -9,5 +9,6 @@
                   kernel,
                   stdlib
                  ]},
+  {mod, {simplenfs, []}},
   {env, []}
  ]}.
