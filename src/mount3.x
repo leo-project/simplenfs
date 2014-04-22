@@ -132,67 +132,6 @@ struct *exportnode {
 };
 
 program MOUNTPROG {
-	/*
-	 * Version one of the mount protocol communicates with version two
-	 * of the NFS protocol. Version three communicates with
-	 * version three of the NFS protocol. The only connecting
-	 * point is the fhandle structure, which is the same for both
-	 * protocols.
-	 */
-	version MOUNTVERS {
-		/*
-		 * Does no work. It is made available in all RPC services
-		 * to allow server reponse testing and timing
-		 */
-		void
-		MOUNTPROC_NULL(void) = 0;
-
-		/*	
-		 * If fhs_status is 0, then fhs_fhandle contains the
-	 	 * file handle for the directory. This file handle may
-		 * be used in the NFS protocol. This procedure also adds
-		 * a new entry to the mount list for this client mounting
-		 * the directory.
-		 * Unix authentication required.
-		 */
-		fhstatus 
-		MOUNTPROC_MNT(dirpath) = 1;
-
-		/*
-		 * Returns the list of remotely mounted filesystems. The 
-		 * mountlist contains one entry for each hostname and 
-		 * directory pair.
-		 */
-		mountbody
-		MOUNTPROC_DUMP(void) = 2;
-
-		/*
-		 * Removes the mount list entry for the directory
-		 * Unix authentication required.
-		 */
-		void
-		MOUNTPROC_UMNT(dirpath) = 3;
-
-		/*
-		 * Removes all of the mount list entries for this client
-		 * Unix authentication required.
-		 */
-		void
-		MOUNTPROC_UMNTALL(void) = 4;
-
-		/*
-		 * Returns a list of all the exported filesystems, and which
-		 * machines are allowed to import it.
-		 */
-		exportnode
-		MOUNTPROC_EXPORT(void)  = 5;
-
-		/*
-		 * Identical to MOUNTPROC_EXPORT above
-		 */
-		exportnode
-		MOUNTPROC_EXPORTALL(void) = 6;
-	} = 1;
 /* #ifdef WANT_NFS3 */
 	version MOUNTVERS3 {
 		/*
