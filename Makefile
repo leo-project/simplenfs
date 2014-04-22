@@ -1,8 +1,8 @@
 REBAR=$(shell which rebar 2>/dev/null || echo ./rebar)
 
-all:
-	@$(REBAR) update-deps
-	@$(REBAR) get-deps
+.PHONY: deps compile
+
+all: gen_nfs
 	@$(REBAR) compile
 
 ./rebar:
@@ -11,8 +11,19 @@ all:
 		-s inets stop -s init stop
 	chmod +x ./rebar
 
+deps: $(REBAR)
+	@$(REBAR) get-deps
+
 compile: $(REBAR)
 	@$(REBAR) compile
+
+gen_rpc: deps
+	(cd deps/erpcgen/;make rpc)
+	cp deps/erpcgen/rpc/*.[he]rl src/
+
+gen_nfs: gen_rpc
+	./deps/erpcgen/priv/erpcgen -a [svc_callback,xdr,hrl] src/nfs_prot3.x
+	./deps/erpcgen/priv/erpcgen -a [svc_callback,xdr,hrl] src/mount3.x
 
 clean: $(REBAR)
 	@$(REBAR) clean
