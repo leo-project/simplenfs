@@ -1,5 +1,6 @@
 -module(nfs_prot3_server).
 -include("nfs_prot3.hrl").
+-include_lib("kernel/include/file.hrl").
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          nfsproc3_null_3/2,
          nfsproc3_getattr_3/3,
@@ -41,32 +42,49 @@ handle_info(Req, S) ->
  
 terminate(_Reason, _S) ->
     ok.
+
+%% private
+file_info2type(#file_info{type = directory}) ->
+    'NF3DIR';
+file_info2type(#file_info{type = regular}) ->
+    'NF3REG';
+file_info2type(#file_info{type = symlink}) ->
+    'NF3LNK';
+file_info2type(#file_info{type = _Other}) ->
+    exit({error, "file type not supporeted"}).
  
 nfsproc3_null_3(_Clnt, State) ->
     {reply, [], State}.
  
-nfsproc3_getattr_3(_1, Clnt, State) ->
-    io:format(user, "[getattr]args:~p client:~p~n",[_1, Clnt]),
-    {reply, 
-        {'NFS3_OK',
-        {
-           % fattr
-           {'NF3DIR',
-            0, % protection mode bits
-            0, % # of hard links
-            0, % uid
-            0, % gid
-            4096, % file size
-            4096, % actual size used at disk(LeoFS should return `body + metadata + header/footer`)
-            {0, 0}, % data used for special file(in Linux first is major, second is minor number)
-            0, % fsid
-            0, % fieldid 
-            {0, 0}, % last access
-            {0, 0}, % last modification
-            {0, 0}} % last change
-        }}, 
-        State}.
- 
+nfsproc3_getattr_3({{Path}}, Clnt, State) ->
+    io:format(user, "[getattr]args:~p client:~p~n",[Path, Clnt]),
+    case file:read_file_info(Path) of
+        {ok, FileInfo} ->
+            io:format(user, "[debug]fi:~p~n", [FileInfo]),
+            {reply, 
+            {'NFS3_OK',
+            {
+               % fattr
+               {file_info2type(FileInfo),
+                FileInfo#file_info.mode,  % protection mode bits
+                FileInfo#file_info.links, % # of hard links
+                FileInfo#file_info.uid,   % uid
+                FileInfo#file_info.gid,   % gid
+                FileInfo#file_info.size,  % file size
+                8192,                     % @todo actual size used at disk(LeoFS should return `body + metadata + header/footer`)
+                {0, 0}, % data used for special file(in Linux first is major, second is minor number)
+                0, % fsid
+                FileInfo#file_info.inode, % fieldid 
+                {calendar:datetime_to_gregorian_seconds(FileInfo#file_info.atime), 0}, % last access
+                {calendar:datetime_to_gregorian_seconds(FileInfo#file_info.mtime), 0}, % last modification
+                {calendar:datetime_to_gregorian_seconds(FileInfo#file_info.ctime), 0}} % last change
+            }}, 
+            State};
+        {error, Reason} ->
+            io:format(user, "[debug]read_file_info failed reason:~p~n", [Reason]),
+            {reply, {'NFS3ERR_IO', Reason}, State}
+    end.
+     
 nfsproc3_setattr_3(_1, Clnt, State) ->
     io:format(user, "[setattr]args:~p client:~p~n",[_1, Clnt]),
     {reply, 
