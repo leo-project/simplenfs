@@ -166,6 +166,28 @@ readdir_create_resp(Dir,
                                 Resp)
     end.
 
+unix_time() -> 
+    % calendar:datetime_to_gregorian_seconds({{1970,1,1},{0,0,0}}) = 62167219200
+    calendar:datetime_to_gregorian_seconds(calendar:universal_time()) - 62167219200.
+
+sattr_mode2file_info({0, _})   -> undefined;
+sattr_mode2file_info({true, Mode}) -> Mode.
+
+sattr_uid2file_info({0, _})   -> undefined;
+sattr_uid2file_info({true, UID}) -> UID.
+
+sattr_gid2file_info({0, _})   -> undefined;
+sattr_gid2file_info({true, GID}) -> GID.
+
+sattr_atime2file_info({'DONT_CHANGE', _}) -> undefined;
+sattr_atime2file_info({'SET_TO_SERVER_TIME', _}) -> unix_time();
+sattr_atime2file_info({_, {ATime, _}})         -> ATime.
+
+sattr_mtime2file_info({'DONT_CHANGE', _}) -> undefined;
+sattr_mtime2file_info({'SET_TO_SERVER_TIME', _}) -> unix_time();
+sattr_mtime2file_info({_, {MTime, _}})         -> MTime.
+
+
 nfsproc3_null_3(_Clnt, State) ->
     {reply, [], State}.
  
@@ -198,17 +220,45 @@ nfsproc3_getattr_3({{Path}}, Clnt, State) ->
             {reply, {'NFS3ERR_IO', Reason}, State}
     end.
      
-nfsproc3_setattr_3(_1, Clnt, State) ->
+nfsproc3_setattr_3({{Path},
+                    {Mode,
+                     UID,
+                     GID,
+                     _,
+                     ATime,
+                     MTime
+                    },_Guard} = _1, Clnt, State) ->
     io:format(user, "[setattr]args:~p client:~p~n",[_1, Clnt]),
-    {reply, 
-        {'NFS3_OK',
-        {
-            {%% wcc_data
-                {false, void}, %% pre_op_attr
-                {false, void}  %% post_op_attr
-            }
-        }}, 
-        State}.
+    FileInfo = #file_info{
+            mode = sattr_mode2file_info(Mode),
+            uid  = sattr_uid2file_info(UID),
+            gid  = sattr_gid2file_info(GID),
+            atime = sattr_atime2file_info(ATime),
+            mtime = sattr_mtime2file_info(MTime)
+            },
+    case file:write_file_info(Path, FileInfo, [{time, posix}]) of
+        ok ->
+            {reply, 
+                {'NFS3_OK',
+                {
+                    {%% wcc_data
+                        {false, void}, %% pre_op_attr
+                        {false, void}  %% post_op_attr
+                    }
+                }}, 
+                State};
+        {error, Reason} ->
+            io:format(user, "[setattr]error reason:~p~n",[Reason]),
+            {reply, 
+                {'NFS3ERR_IO',
+                {
+                    {%% wcc_data
+                        {false, void}, %% pre_op_attr
+                        {false, void}  %% post_op_attr
+                    }
+                }}, 
+                State}
+    end.
  
 nfsproc3_lookup_3(_1, Clnt, State) ->
     io:format(user, "[lookup]args:~p client:~p~n",[_1, Clnt]),
