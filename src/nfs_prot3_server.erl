@@ -24,6 +24,11 @@
          nfsproc3_pathconf_3/3,
          nfsproc3_commit_3/3,
          nfsproc3_fsinfo_3/3]).
+
+-record(simplenfs_ongoing_readdir, {
+    filelist  :: list(file:filename_all()),
+    pos       :: pos_integer()
+}).
  
 init(_Args) ->
     {ok, void}.
@@ -52,7 +57,115 @@ file_info2type(#file_info{type = symlink}) ->
     'NF3LNK';
 file_info2type(#file_info{type = _Other}) ->
     exit({error, "file type not supporeted"}).
- 
+
+%% about readdir
+%% dict(CookieVerf::binary(), ReadDir::#simplenfs_ongoing_readdir{}), 
+readdir_add_entry(Path) ->
+    ReadDirDict = case application:get_env(simplenfs, ongoing_readdir) of
+        undefined ->
+            dict:new();
+        {ok, Val} ->
+            Val
+    end,
+    readdir_add_entry(Path, ReadDirDict).
+readdir_add_entry(Path, ReadDirDict) ->
+    case file:list_dir(Path) of
+        {ok, FileList}->
+            %% gen cookie verfier
+            %% @TODO must be uniq
+            <<CookieVerf:8/binary, _/binary>> = erlang:md5(Path),
+            %% store new simplenfs_ongoing_readdir
+            ReadDir = #simplenfs_ongoing_readdir{filelist = FileList, pos = 0},
+            NewReadDirDict = dict:store(CookieVerf, ReadDir, ReadDirDict),
+            application:set_env(simplenfs, ongoing_readdir, NewReadDirDict),
+            {ok, CookieVerf, ReadDir};
+        {error, _Reason}->
+            %% return empty
+            %% @TODO error handling
+            {ok, <<>>, []} 
+    end.
+
+readdir_set_entry(CookieVerf, ReadDir) ->
+    ReadDirDict = case application:get_env(simplenfs, ongoing_readdir) of
+        undefined ->
+            dict:new();
+        {ok, Val} ->
+            Val
+    end,
+    readdir_set_entry(CookieVerf, ReadDir, ReadDirDict).
+readdir_set_entry(CookieVerf, ReadDir, ReadDirDict) ->
+    NewReadDirDict = dict:store(CookieVerf, ReadDir, ReadDirDict),
+    application:set_env(simplenfs, ongoing_readdir, NewReadDirDict).
+
+readdir_get_entry(CookieVerf) ->
+    case application:get_env(simplenfs, ongoing_readdir) of
+        undefined ->
+            {ok, CookieVerf, []};
+        {ok, ReadDirDict} ->
+            case dict:find(CookieVerf, ReadDirDict) of
+                {ok, ReadDir} ->
+                    {ok, CookieVerf, ReadDir};
+                error ->
+                    {ok, CookieVerf, []}
+            end
+    end.
+
+readdir_del_entry(CookieVerf) ->
+    case application:get_env(simplenfs, ongoing_readdir) of
+        {ok, ReadDirDict} ->
+            NewReadDirDict = dict:erase(CookieVerf, ReadDirDict),
+            application:set_env(simplenfs, ongoing_readdir, NewReadDirDict);
+        undefined ->
+            void
+    end.
+
+readdir_create_resp(Path, ReadDir, NumEntry) ->
+    readdir_create_resp(Path, ReadDir, NumEntry, void).
+readdir_create_resp(_Path,
+            #simplenfs_ongoing_readdir{filelist = FileList,
+                                       pos      = Pos} = ReadDir, NumEntry, Resp)
+            when length(FileList) == Pos orelse NumEntry == 0 ->
+    io:format(user, "[debug]readdir resp:~p~n",[Resp]),
+    {Resp, ReadDir};
+readdir_create_resp(Dir,
+            #simplenfs_ongoing_readdir{filelist = FileList,
+                                       pos      = Pos} = ReadDir, NumEntry, Resp) ->
+    Name = lists:nth(Pos + 1, FileList),
+    FilePath = filename:join(Dir, Name),
+    case file:read_file_info(FilePath, [{time, posix}]) of
+        {ok, FileInfo} ->
+            NewResp = {FileInfo#file_info.inode,
+                     Name,
+                     0,
+                     {true, %% post_op_attr
+                         {file_info2type(FileInfo),
+                          FileInfo#file_info.mode,  % protection mode bits
+                          FileInfo#file_info.links, % # of hard links
+                          FileInfo#file_info.uid,   % uid
+                          FileInfo#file_info.gid,   % gid
+                          FileInfo#file_info.size,  % file size
+                          8192,
+                          {0, 0},
+                          0,
+                          FileInfo#file_info.inode, % fieldid 
+                          {FileInfo#file_info.atime, 0}, % last access
+                          {FileInfo#file_info.mtime, 0}, % last modification
+                          {FileInfo#file_info.ctime, 0}}
+                     },
+                     {true, {FilePath}}, %% post_op_fh3
+                     Resp
+                    },
+            readdir_create_resp(Dir,
+                                ReadDir#simplenfs_ongoing_readdir{pos = Pos + 1},
+                                NumEntry - 1,
+                                NewResp);
+        {error, _Reason} ->
+            readdir_create_resp(Dir,
+                                ReadDir#simplenfs_ongoing_readdir{pos = Pos + 1},
+                                NumEntry - 1,
+                                Resp)
+    end.
+
 nfsproc3_null_3(_Clnt, State) ->
     {reply, [], State}.
  
@@ -275,20 +388,55 @@ nfsproc3_readdir_3(_1, Clnt, State) ->
         }}, 
         State}.
  
-nfsproc3_readdirplus_3(_1, Clnt, State) ->
+nfsproc3_readdirplus_3({{Path}, _Cookie, CookieVerf, _DirCnt, _MaxCnt} = _1, Clnt, State) ->
     io:format(user, "[readdirplus]args:~p client:~p~n",[_1, Clnt]),
-    {reply, 
-        {'NFS3_OK',
-        {
-            {false, void}, %% post_op_attr
-            <<"12345678">>, %% cookie verfier
-            {%% dir_list(empty)
-                void, %% pre_op_attr
-                true  %% eof
-            }
-        }}, 
-        State}.
- 
+    {ok, NewCookieVerf, ReadDir} = case CookieVerf of
+        <<0,0,0,0,0,0,0,0>> ->
+            readdir_add_entry(Path);
+        CookieVerf ->
+            readdir_get_entry(CookieVerf)
+    end,
+    case ReadDir of
+        [] ->
+            % empty response
+            {reply, 
+                {'NFS3_OK',
+                {
+                    {false, void}, %% post_op_attr
+                    <<"00000000">>, %% cookie verfier
+                    {%% dir_list(empty)
+                        void, %% pre_op_attr
+                        true  %% eof
+                    }
+                }}, 
+                State};
+        ReadDir ->
+            io:format(user, "[readdirplus]cookie:~p readdir:~p~n",[NewCookieVerf, ReadDir]),
+            % create response
+            % @TODO
+            % # of entries should be determinted by _MaxCnt
+            {Resp, NewReadDir} = readdir_create_resp(Path, ReadDir, 10),
+            #simplenfs_ongoing_readdir{filelist = FileList, pos = Pos} = NewReadDir,
+            EOF = (length(FileList) == Pos),
+            case EOF of
+                true -> 
+                    readdir_del_entry(NewCookieVerf);
+                false ->
+                    readdir_set_entry(NewCookieVerf, NewReadDir)
+            end,
+            {reply,
+                {'NFS3_OK',
+                {
+                    {false, void}, %% post_op_attr
+                    NewCookieVerf, %% cookie verfier
+                    {
+                        Resp, %% pre_op_attr
+                        EOF
+                    }
+                }}, 
+                State}
+    end.
+
 nfsproc3_fsstat_3(_1, Clnt, State) ->
     io:format(user, "[fsstat]args:~p client:~p~n",[_1, Clnt]),
     {reply, 
