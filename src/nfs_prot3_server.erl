@@ -58,7 +58,7 @@ nfsproc3_null_3(_Clnt, State) ->
  
 nfsproc3_getattr_3({{Path}}, Clnt, State) ->
     io:format(user, "[getattr]args:~p client:~p~n",[Path, Clnt]),
-    case file:read_file_info(Path) of
+    case file:read_file_info(Path, [{time, posix}]) of
         {ok, FileInfo} ->
             io:format(user, "[debug]fi:~p~n", [FileInfo]),
             {reply, 
@@ -75,9 +75,9 @@ nfsproc3_getattr_3({{Path}}, Clnt, State) ->
                 {0, 0}, % data used for special file(in Linux first is major, second is minor number)
                 0, % fsid
                 FileInfo#file_info.inode, % fieldid 
-                {calendar:datetime_to_gregorian_seconds(FileInfo#file_info.atime), 0}, % last access
-                {calendar:datetime_to_gregorian_seconds(FileInfo#file_info.mtime), 0}, % last modification
-                {calendar:datetime_to_gregorian_seconds(FileInfo#file_info.ctime), 0}} % last change
+                {FileInfo#file_info.atime, 0}, % last access
+                {FileInfo#file_info.mtime, 0}, % last modification
+                {FileInfo#file_info.ctime, 0}} % last change
             }}, 
             State};
         {error, Reason} ->
