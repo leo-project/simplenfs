@@ -138,19 +138,7 @@ readdir_create_resp(Dir,
                      Name,
                      0,
                      {true, %% post_op_attr
-                         {file_info2type(FileInfo),
-                          FileInfo#file_info.mode,  % protection mode bits
-                          FileInfo#file_info.links, % # of hard links
-                          FileInfo#file_info.uid,   % uid
-                          FileInfo#file_info.gid,   % gid
-                          FileInfo#file_info.size,  % file size
-                          8192,
-                          {0, 0},
-                          0,
-                          FileInfo#file_info.inode, % fieldid 
-                          {FileInfo#file_info.atime, 0}, % last access
-                          {FileInfo#file_info.mtime, 0}, % last modification
-                          {FileInfo#file_info.ctime, 0}}
+                         file_info2fattr3(FileInfo)
                      },
                      {true, {FilePath}}, %% post_op_fh3
                      Resp
@@ -187,6 +175,20 @@ sattr_mtime2file_info({'DONT_CHANGE', _}) -> undefined;
 sattr_mtime2file_info({'SET_TO_SERVER_TIME', _}) -> unix_time();
 sattr_mtime2file_info({_, {MTime, _}})         -> MTime.
 
+file_info2fattr3(FileInfo) ->
+    {file_info2type(FileInfo),
+     FileInfo#file_info.mode,  % protection mode bits
+     FileInfo#file_info.links, % # of hard links
+     FileInfo#file_info.uid,   % uid
+     FileInfo#file_info.gid,   % gid
+     FileInfo#file_info.size,  % file size
+     8192,                     % @todo actual size used at disk(LeoFS should return `body + metadata + header/footer`)
+     {0, 0}, % data used for special file(in Linux first is major, second is minor number)
+     0, % fsid
+     FileInfo#file_info.inode, % fieldid 
+     {FileInfo#file_info.atime, 0}, % last access
+     {FileInfo#file_info.mtime, 0}, % last modification
+     {FileInfo#file_info.ctime, 0}}.% last change
 
 nfsproc3_null_3(_Clnt, State) ->
     {reply, [], State}.
@@ -200,19 +202,7 @@ nfsproc3_getattr_3({{Path}}, Clnt, State) ->
             {'NFS3_OK',
             {
                % fattr
-               {file_info2type(FileInfo),
-                FileInfo#file_info.mode,  % protection mode bits
-                FileInfo#file_info.links, % # of hard links
-                FileInfo#file_info.uid,   % uid
-                FileInfo#file_info.gid,   % gid
-                FileInfo#file_info.size,  % file size
-                8192,                     % @todo actual size used at disk(LeoFS should return `body + metadata + header/footer`)
-                {0, 0}, % data used for special file(in Linux first is major, second is minor number)
-                0, % fsid
-                FileInfo#file_info.inode, % fieldid 
-                {FileInfo#file_info.atime, 0}, % last access
-                {FileInfo#file_info.mtime, 0}, % last modification
-                {FileInfo#file_info.ctime, 0}} % last change
+               file_info2fattr3(FileInfo)
             }}, 
             State};
         {error, Reason} ->
@@ -260,16 +250,27 @@ nfsproc3_setattr_3({{Path},
                 State}
     end.
  
-nfsproc3_lookup_3(_1, Clnt, State) ->
+nfsproc3_lookup_3({{{Dir}, Name}} = _1, Clnt, State) ->
     io:format(user, "[lookup]args:~p client:~p~n",[_1, Clnt]),
-    {reply, 
-        {'NFS3_OK',
-        {
-            {<<"pseudo nfs file handle">>}, %% pre_op_attr
-            {false, void}, %% post_op_attr for obj
-            {false, void}  %% post_op_attr for dir
-        }}, 
-        State}.
+    Path = filename:join(Dir, Name),
+    case file:read_file_info(Path, [{time, posix}]) of
+        {ok, FileInfo} ->
+            {reply, 
+                {'NFS3_OK',
+                {
+                    {Path}, %% pre_op_attr
+                    file_info2fattr3(FileInfo), %% post_op_attr for obj
+                    {false, void}  %% post_op_attr for dir
+                }}, 
+                State};
+        {error, _} ->
+            {reply, 
+                {'NFS3ERR_NOENT',
+                {
+                    {false, void}  %% post_op_attr for dir
+                }}, 
+                State}
+    end.
  
 nfsproc3_access_3(_1, Clnt, State) ->
     io:format(user, "[access]args:~p client:~p~n",[_1, Clnt]),
