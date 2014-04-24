@@ -316,19 +316,68 @@ nfsproc3_write_3(_1, Clnt, State) ->
         }}, 
         State}.
  
-nfsproc3_create_3(_1, Clnt, State) ->
+nfsproc3_create_3({{{Dir}, Name}, {CreateMode,
+                    {Mode,
+                     UID,
+                     GID,
+                     _,
+                     ATime,
+                     MTime
+                    }}} = _1, Clnt, State) ->
     io:format(user, "[create]args:~p client:~p~n",[_1, Clnt]),
-    {reply, 
-        {'NFS3_OK',
-        {
-            {false, void}, %% post_op file handle
-            {false, void}, %% post_op_attr
-            {%% wcc_data
-                {false, void}, %% pre_op_attr
-                {false, void}  %% post_op_attr
-            }
-        }}, 
-        State}.
+    OpenModes = case CreateMode of
+        'UNCHECKED' ->
+            [write];
+        _ ->
+            [write, exclusive]
+    end,
+    FilePath = filename:join(Dir, Name),
+    case file:open(FilePath, OpenModes) of
+        {ok, IoDev} ->
+            catch file:close(IoDev),
+            FileInfo = #file_info{
+                mode = sattr_mode2file_info(Mode),
+                uid  = sattr_uid2file_info(UID),
+                gid  = sattr_gid2file_info(GID),
+                atime = sattr_atime2file_info(ATime),
+                mtime = sattr_mtime2file_info(MTime)
+            },
+            case file:write_file_info(FilePath, FileInfo, [{time, posix}]) of
+                ok ->
+                    {reply, 
+                        {'NFS3_OK',
+                        {
+                            {true, {FilePath}}, %% post_op file handle
+                            {false, void},      %% post_op_attr
+                            {%% wcc_data
+                                {false, void}, %% pre_op_attr
+                                {false, void}  %% post_op_attr
+                            }
+                        }}, 
+                        State};
+                {error, _} ->
+                    {reply, 
+                        {'NFS3ERR_IO',
+                        {
+                            {%% wcc_data
+                                {false, void}, %% pre_op_attr
+                                {false, void}  %% post_op_attr
+                            }
+                        }}, 
+                        State}
+            end;
+        {error, Reason} ->
+            io:format(user, "[create]error reason:~p~n",[Reason]),
+            {reply, 
+                {'NFS3ERR_IO',
+                {
+                    {%% wcc_data
+                        {false, void}, %% pre_op_attr
+                        {false, void}  %% post_op_attr
+                    }
+                }}, 
+                State}
+    end.
  
 nfsproc3_mkdir_3(_1, Clnt, State) ->
     io:format(user, "[mkdir]args:~p client:~p~n",[_1, Clnt]),
