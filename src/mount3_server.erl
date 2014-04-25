@@ -8,19 +8,39 @@
          mountproc_umntall_3/2,
          mountproc_export_3/2]).
  
+-record(state, {
+    debug      :: boolean()
+}).
+
 init(_Args) ->
-    {ok, void}.
+    Debug = case application:get_env(simplenfs, debug) of
+        undefined ->
+            false;
+        {ok, Val} ->
+            Val
+    end,
+    State = #state{debug = Debug},
+    {ok, State}.
  
-handle_call(Req, _From, S) ->
-    io:format(user, "[handle_call]req:~p from:~p~n",[Req, _From]),
+handle_call(Req, _From, #state{debug = Debug} = S) ->
+    case Debug of
+        true -> io:format(user, "[handle_call]req:~p from:~p~n",[Req, _From]);
+        false -> void
+    end,
     {reply, [], S}.
  
-handle_cast(Req, S) ->
-    io:format(user, "[handle_cast]req:~p~n",[Req]),
+handle_cast(Req, #state{debug = Debug} = S) ->
+    case Debug of
+        true -> io:format(user, "[handle_cast]req:~p~n",[Req]);
+        false -> void
+    end,
     {reply, [], S}.
  
-handle_info(Req, S) ->
-    io:format(user, "[handle_info]req:~p~n",[Req]),
+handle_info(Req, #state{debug = Debug} = S) ->
+    case Debug of
+        true -> io:format(user, "[handle_info]req:~p~n",[Req]);
+        false -> void
+    end,
     {noreply, S}.
  
 terminate(_Reason, _S) ->
@@ -79,8 +99,11 @@ mount_del_entry(MountDir, Addr, MountPointDict) ->
 mountproc_null_3(_Clnt, State) ->
     {reply, [], State}.
  
-mountproc_mnt_3(MountDir0, Clnt, State) ->
-    io:format(user, "[mnt]args:~p client:~p~n",[MountDir0, Clnt]),
+mountproc_mnt_3(MountDir0, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[mnt]args:~p client:~p~n",[MountDir0, Clnt]);
+        false -> void
+    end,
     % validate path
     MountDir = formalize_path(MountDir0),
     case filelib:is_dir(MountDir) of
@@ -93,21 +116,33 @@ mountproc_mnt_3(MountDir0, Clnt, State) ->
             {reply, {'MNT3ERR_NOTDIR', []}, State}
     end.
  
-mountproc_dump_3(Clnt, State) ->
-    io:format(user, "[dump]client:~p~n",[Clnt]),
+mountproc_dump_3(Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[dump]client:~p~n",[Clnt]);
+        false -> void
+    end,
     {reply, void, State}.
  
-mountproc_umnt_3(MountDir0, Clnt, State) ->
-    io:format(user, "[umnt]args:~p client:~p~n",[MountDir0, Clnt]),
+mountproc_umnt_3(MountDir0, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[umnt]args:~p client:~p~n",[MountDir0, Clnt]);
+        false -> void
+    end,
     MountDir = formalize_path(MountDir0),
     {ok, {Addr, _Port}}= rpc_server:client_ip(Clnt),
     catch mount_del_entry(MountDir, Addr),
     {reply, void, State}.
  
-mountproc_umntall_3(Clnt, State) ->
-    io:format(user, "[umntall]client:~p~n",[Clnt]),
+mountproc_umntall_3(Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[umntall]client:~p~n",[Clnt]);
+        false -> void
+    end,
     {reply, void, State}.
  
-mountproc_export_3(Clnt, State) ->
-    io:format(user, "[export]client:~p~n",[Clnt]),
+mountproc_export_3(Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[export]client:~p~n",[Clnt]);
+        false -> void
+    end,
     {reply, void, State}.

@@ -31,23 +31,40 @@
 }).
 
 -record(state, {
+    debug      :: boolean(),
     write_verf :: binary() %% to be consistent during a single boot session
 }).
 
 init(_Args) ->
-    State = #state{write_verf = crypto:rand_bytes(8)},
+    Debug = case application:get_env(simplenfs, debug) of
+        undefined ->
+            false;
+        {ok, Val} ->
+            Val
+    end,
+    State = #state{debug = Debug,
+                   write_verf = crypto:rand_bytes(8)},
     {ok, State}.
  
-handle_call(Req, _From, S) ->
-    io:format(user, "[handle_call]req:~p from:~p~n",[Req, _From]),
+handle_call(Req, _From, #state{debug = Debug} = S) ->
+    case Debug of
+        true -> io:format(user, "[handle_call]req:~p from:~p~n",[Req, _From]);
+        false -> void
+    end,
     {reply, [], S}.
  
-handle_cast(Req, S) ->
-    io:format(user, "[handle_cast]req:~p~n",[Req]),
+handle_cast(Req, #state{debug = Debug} = S) ->
+    case Debug of
+        true -> io:format(user, "[handle_cast]req:~p~n",[Req]);
+        false -> void
+    end,
     {reply, [], S}.
  
-handle_info(Req, S) ->
-    io:format(user, "[handle_info]req:~p~n",[Req]),
+handle_info(Req, #state{debug = Debug} = S) ->
+    case Debug of
+        true -> io:format(user, "[handle_info]req:~p~n",[Req]);
+        false -> void
+    end,
     {noreply, S}.
  
 terminate(_Reason, _S) ->
@@ -130,7 +147,6 @@ readdir_create_resp(_Path,
             #simplenfs_ongoing_readdir{filelist = FileList,
                                        pos      = Pos} = ReadDir, NumEntry, Resp)
             when length(FileList) == Pos orelse NumEntry == 0 ->
-    io:format(user, "[debug]readdir resp:~p~n",[Resp]),
     {Resp, ReadDir};
 readdir_create_resp(Dir,
             #simplenfs_ongoing_readdir{filelist = FileList,
@@ -198,11 +214,13 @@ file_info2fattr3(FileInfo) ->
 nfsproc3_null_3(_Clnt, State) ->
     {reply, [], State}.
  
-nfsproc3_getattr_3({{Path}}, Clnt, State) ->
-    io:format(user, "[getattr]args:~p client:~p~n",[Path, Clnt]),
+nfsproc3_getattr_3({{Path}}, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[getattr]args:~p client:~p~n",[Path, Clnt]);
+        false -> void
+    end,
     case file:read_file_info(Path, [{time, posix}]) of
         {ok, FileInfo} ->
-            io:format(user, "[debug]fi:~p~n", [FileInfo]),
             {reply, 
             {'NFS3_OK',
             {
@@ -222,8 +240,11 @@ nfsproc3_setattr_3({{Path},
                      _,
                      ATime,
                      MTime
-                    },_Guard} = _1, Clnt, State) ->
-    io:format(user, "[setattr]args:~p client:~p~n",[_1, Clnt]),
+                    },_Guard} = _1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[setattr]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     FileInfo = #file_info{
             mode = sattr_mode2file_info(Mode),
             uid  = sattr_uid2file_info(UID),
@@ -255,8 +276,11 @@ nfsproc3_setattr_3({{Path},
                 State}
     end.
  
-nfsproc3_lookup_3({{{Dir}, Name}} = _1, Clnt, State) ->
-    io:format(user, "[lookup]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_lookup_3({{{Dir}, Name}} = _1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[lookup]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     Path = filename:join(Dir, Name),
     case file:read_file_info(Path, [{time, posix}]) of
         {ok, FileInfo} ->
@@ -277,8 +301,11 @@ nfsproc3_lookup_3({{{Dir}, Name}} = _1, Clnt, State) ->
                 State}
     end.
  
-nfsproc3_access_3(_1, Clnt, State) ->
-    io:format(user, "[access]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_access_3(_1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[access]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     {reply, 
         {'NFS3_OK',
         {
@@ -287,8 +314,11 @@ nfsproc3_access_3(_1, Clnt, State) ->
         }}, 
         State}.
  
-nfsproc3_readlink_3(_1, Clnt, State) ->
-    io:format(user, "[readlink]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_readlink_3(_1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[readlink]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     {reply, 
         {'NFS3_OK',
         {
@@ -297,8 +327,11 @@ nfsproc3_readlink_3(_1, Clnt, State) ->
         }}, 
         State}.
  
-nfsproc3_read_3({{Path}, Offset, Count} =_1, Clnt, State) ->
-    io:format(user, "[read]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_read_3({{Path}, Offset, Count} =_1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[read]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     case file:open(Path, [read, binary, raw]) of
         {ok, IoDev} ->
             try
@@ -345,8 +378,11 @@ nfsproc3_read_3({{Path}, Offset, Count} =_1, Clnt, State) ->
                 State} 
     end.
  
-nfsproc3_write_3({{Path}, Offset, Count, _HowStable, Data} = _1, Clnt, State) ->
-    io:format(user, "[write]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_write_3({{Path}, Offset, Count, _HowStable, Data} = _1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[write]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     case file:open(Path, [read, write, binary, raw]) of
         {ok, IoDev} ->
             try
@@ -393,8 +429,11 @@ nfsproc3_write_3({{Path}, Offset, Count, _HowStable, Data} = _1, Clnt, State) ->
     end.
     
  
-nfsproc3_create_3({{{Dir}, Name}, {CreateMode, _How}} = _1, Clnt, State) ->
-    io:format(user, "[create]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_create_3({{{Dir}, Name}, {CreateMode, _How}} = _1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[create]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     OpenModes = case CreateMode of
         'UNCHECKED' ->
             [write];
@@ -429,8 +468,11 @@ nfsproc3_create_3({{{Dir}, Name}, {CreateMode, _How}} = _1, Clnt, State) ->
                 State}
     end.
  
-nfsproc3_mkdir_3({{{Dir}, Name}, _How} = _1, Clnt, State) ->
-    io:format(user, "[mkdir]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_mkdir_3({{{Dir}, Name}, _How} = _1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[mkdir]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     DirPath = filename:join(Dir, Name),
     case file:make_dir(DirPath) of
         ok ->
@@ -460,8 +502,11 @@ nfsproc3_mkdir_3({{{Dir}, Name}, _How} = _1, Clnt, State) ->
                 State}
     end.
  
-nfsproc3_symlink_3(_1, Clnt, State) ->
-    io:format(user, "[symlink]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_symlink_3(_1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[symlink]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     {reply, 
         {'NFS3_OK',
         {
@@ -474,8 +519,11 @@ nfsproc3_symlink_3(_1, Clnt, State) ->
         }}, 
         State}.
  
-nfsproc3_mknod_3(_1, Clnt, State) ->
-    io:format(user, "[mknode]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_mknod_3(_1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[mknod]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     {reply, 
         {'NFS3_OK',
         {
@@ -488,8 +536,11 @@ nfsproc3_mknod_3(_1, Clnt, State) ->
         }}, 
         State}.
  
-nfsproc3_remove_3({{{Dir}, Name}} = _1, Clnt, State) ->
-    io:format(user, "[remove]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_remove_3({{{Dir}, Name}} = _1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[remove]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     FilePath = filename:join(Dir, Name),
     case file:delete(FilePath) of
         ok ->
@@ -515,8 +566,11 @@ nfsproc3_remove_3({{{Dir}, Name}} = _1, Clnt, State) ->
                 State}
     end.
          
-nfsproc3_rmdir_3({{{Dir}, Name}} = _1, Clnt, State) ->
-    io:format(user, "[rmdir]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_rmdir_3({{{Dir}, Name}} = _1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[rmdir]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     DirPath = filename:join(Dir, Name),
     case file:del_dir(DirPath) of
         ok ->
@@ -542,8 +596,11 @@ nfsproc3_rmdir_3({{{Dir}, Name}} = _1, Clnt, State) ->
                 State}
     end.
  
-nfsproc3_rename_3({{{SrcDir}, SrcName}, {{DstDir}, DstName}} =_1, Clnt, State) ->
-    io:format(user, "[rename]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_rename_3({{{SrcDir}, SrcName}, {{DstDir}, DstName}} =_1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[rename]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     Src = filename:join(SrcDir, SrcName),
     Dst = filename:join(DstDir, DstName),
     case file:rename(Src, Dst) of
@@ -578,8 +635,11 @@ nfsproc3_rename_3({{{SrcDir}, SrcName}, {{DstDir}, DstName}} =_1, Clnt, State) -
                 State}
     end.
  
-nfsproc3_link_3(_1, Clnt, State) ->
-    io:format(user, "[link]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_link_3(_1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[link]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     {reply, 
         {'NFS3_NG',
         {
@@ -591,8 +651,11 @@ nfsproc3_link_3(_1, Clnt, State) ->
         }}, 
         State}.
  
-nfsproc3_readdir_3(_1, Clnt, State) ->
-    io:format(user, "[readdir]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_readdir_3(_1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[readdir]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     {reply, 
         {'NFS3_OK',
         {
@@ -605,8 +668,11 @@ nfsproc3_readdir_3(_1, Clnt, State) ->
         }}, 
         State}.
  
-nfsproc3_readdirplus_3({{Path}, _Cookie, CookieVerf, _DirCnt, _MaxCnt} = _1, Clnt, State) ->
-    io:format(user, "[readdirplus]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_readdirplus_3({{Path}, _Cookie, CookieVerf, _DirCnt, _MaxCnt} = _1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[readdirplus]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     {ok, NewCookieVerf, ReadDir} = case CookieVerf of
         <<0,0,0,0,0,0,0,0>> ->
             readdir_add_entry(Path);
@@ -628,7 +694,6 @@ nfsproc3_readdirplus_3({{Path}, _Cookie, CookieVerf, _DirCnt, _MaxCnt} = _1, Cln
                 }}, 
                 State};
         ReadDir ->
-            io:format(user, "[readdirplus]cookie:~p readdir:~p~n",[NewCookieVerf, ReadDir]),
             % create response
             % @TODO
             % # of entries should be determinted by _MaxCnt
@@ -654,8 +719,11 @@ nfsproc3_readdirplus_3({{Path}, _Cookie, CookieVerf, _DirCnt, _MaxCnt} = _1, Cln
                 State}
     end.
 
-nfsproc3_fsstat_3(_1, Clnt, State) ->
-    io:format(user, "[fsstat]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_fsstat_3(_1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[fsstat]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     {reply, 
         {'NFS3_OK',
         {
@@ -670,8 +738,11 @@ nfsproc3_fsstat_3(_1, Clnt, State) ->
         }}, 
         State}.
  
-nfsproc3_fsinfo_3(_1, Clnt, State) ->
-    io:format(user, "[fsinfo]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_fsinfo_3(_1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[fsinfo]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     {reply, 
         {'NFS3_OK',
         {
@@ -689,8 +760,11 @@ nfsproc3_fsinfo_3(_1, Clnt, State) ->
         }}, 
         State}.
  
-nfsproc3_pathconf_3(_1, Clnt, State) ->
-    io:format(user, "[pathconf]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_pathconf_3(_1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[pathconf]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     {reply, 
         {'NFS3_OK',
         {
@@ -704,8 +778,11 @@ nfsproc3_pathconf_3(_1, Clnt, State) ->
         }}, 
         State}.
  
-nfsproc3_commit_3(_1, Clnt, State) ->
-    io:format(user, "[commit]args:~p client:~p~n",[_1, Clnt]),
+nfsproc3_commit_3(_1, Clnt, #state{debug = Debug} = State) ->
+    case Debug of
+        true -> io:format(user, "[commit]args:~p client:~p~n",[_1, Clnt]);
+        false -> void
+    end,
     {reply, 
         {'NFS3_OK',
         {
