@@ -35,6 +35,13 @@
     write_verf :: binary() %% to be consistent during a single boot session
 }).
 
+-define(SIMPLENFS_WCC_EMPTY, 
+    {
+        {false, void},
+        {false, void}
+    }
+).
+
 init(_Args) ->
     Debug = case application:get_env(simplenfs, debug) of
         undefined ->
@@ -257,10 +264,7 @@ nfsproc3_setattr_3({{Path},
             {reply, 
                 {'NFS3_OK',
                 {
-                    {%% wcc_data
-                        {false, void}, %% pre_op_attr
-                        {false, void}  %% post_op_attr
-                    }
+                    ?SIMPLENFS_WCC_EMPTY
                 }}, 
                 State};
         {error, Reason} ->
@@ -268,10 +272,7 @@ nfsproc3_setattr_3({{Path},
             {reply, 
                 {'NFS3ERR_IO',
                 {
-                    {%% wcc_data
-                        {false, void}, %% pre_op_attr
-                        {false, void}  %% post_op_attr
-                    }
+                    ?SIMPLENFS_WCC_EMPTY
                 }}, 
                 State}
     end.
@@ -391,10 +392,7 @@ nfsproc3_write_3({{Path}, Offset, Count, _HowStable, Data} = _1, Clnt, #state{de
                         {reply, 
                             {'NFS3_OK',
                             {
-                                {%% wcc_data
-                                    {false, void}, %% pre_op_attr
-                                    {false, void}  %% post_op_attr
-                                },
+                                ?SIMPLENFS_WCC_EMPTY,
                                 Count,
                                 'DATA_SYNC',
                                 State#state.write_verf
@@ -405,10 +403,7 @@ nfsproc3_write_3({{Path}, Offset, Count, _HowStable, Data} = _1, Clnt, #state{de
                         {reply, 
                             {'NFS3ERR_IO',
                             {
-                                {%% wcc_data
-                                    {false, void}, %% pre_op_attr
-                                    {false, void}  %% post_op_attr
-                                }
+                                ?SIMPLENFS_WCC_EMPTY
                             }}, 
                             State}
                 end
@@ -420,10 +415,7 @@ nfsproc3_write_3({{Path}, Offset, Count, _HowStable, Data} = _1, Clnt, #state{de
             {reply, 
                 {'NFS3ERR_IO',
                 {
-                    {%% wcc_data
-                        {false, void}, %% pre_op_attr
-                        {false, void}  %% post_op_attr
-                    }
+                    ?SIMPLENFS_WCC_EMPTY
                 }}, 
                 State}
     end.
@@ -449,10 +441,7 @@ nfsproc3_create_3({{{Dir}, Name}, {CreateMode, _How}} = _1, Clnt, #state{debug =
                 {
                     {true, {FilePath}}, %% post_op file handle
                     {false, void},      %% post_op_attr
-                    {%% wcc_data
-                        {false, void}, %% pre_op_attr
-                        {false, void}  %% post_op_attr
-                    }
+                    ?SIMPLENFS_WCC_EMPTY
                 }}, 
                 State};
         {error, Reason} ->
@@ -460,10 +449,7 @@ nfsproc3_create_3({{{Dir}, Name}, {CreateMode, _How}} = _1, Clnt, #state{debug =
             {reply, 
                 {'NFS3ERR_IO',
                 {
-                    {%% wcc_data
-                        {false, void}, %% pre_op_attr
-                        {false, void}  %% post_op_attr
-                    }
+                    ?SIMPLENFS_WCC_EMPTY
                 }}, 
                 State}
     end.
@@ -481,10 +467,7 @@ nfsproc3_mkdir_3({{{Dir}, Name}, _How} = _1, Clnt, #state{debug = Debug} = State
                 {
                     {false, void}, %% post_op file handle
                     {false, void}, %% post_op_attr
-                    {%% wcc_data
-                        {false, void}, %% pre_op_attr
-                        {false, void}  %% post_op_attr
-                    }
+                    ?SIMPLENFS_WCC_EMPTY
                 }}, 
                 State};
         {error, Reason} ->
@@ -494,10 +477,7 @@ nfsproc3_mkdir_3({{{Dir}, Name}, _How} = _1, Clnt, #state{debug = Debug} = State
                 {
                     {false, void}, %% post_op file handle
                     {false, void}, %% post_op_attr
-                    {%% wcc_data
-                        {false, void}, %% pre_op_attr
-                        {false, void}  %% post_op_attr
-                    }
+                    ?SIMPLENFS_WCC_EMPTY
                 }}, 
                 State}
     end.
@@ -512,10 +492,7 @@ nfsproc3_symlink_3(_1, Clnt, #state{debug = Debug} = State) ->
         {
             {false, void}, %% post_op file handle
             {false, void}, %% post_op_attr
-            {%% wcc_data
-                {false, void}, %% pre_op_attr
-                {false, void}  %% post_op_attr
-            }
+            ?SIMPLENFS_WCC_EMPTY
         }}, 
         State}.
  
@@ -529,10 +506,7 @@ nfsproc3_mknod_3(_1, Clnt, #state{debug = Debug} = State) ->
         {
             {false, void}, %% post_op file handle
             {false, void}, %% post_op_attr
-            {%% wcc_data
-                {false, void}, %% pre_op_attr
-                {false, void}  %% post_op_attr
-            }
+            ?SIMPLENFS_WCC_EMPTY
         }}, 
         State}.
  
@@ -547,10 +521,7 @@ nfsproc3_remove_3({{{Dir}, Name}} = _1, Clnt, #state{debug = Debug} = State) ->
             {reply, 
                 {'NFS3_OK',
                 {
-                    {%% wcc_data
-                        {false, void}, %% pre_op_attr
-                        {false, void}  %% post_op_attr
-                    }
+                    ?SIMPLENFS_WCC_EMPTY
                 }}, 
                 State};
         {error, Reason} ->
@@ -558,10 +529,7 @@ nfsproc3_remove_3({{{Dir}, Name}} = _1, Clnt, #state{debug = Debug} = State) ->
             {reply, 
                 {'NFS3ERR_IO',
                 {
-                    {%% wcc_data
-                        {false, void}, %% pre_op_attr
-                        {false, void}  %% post_op_attr
-                    }
+                    ?SIMPLENFS_WCC_EMPTY
                 }}, 
                 State}
     end.
@@ -577,10 +545,7 @@ nfsproc3_rmdir_3({{{Dir}, Name}} = _1, Clnt, #state{debug = Debug} = State) ->
             {reply, 
                 {'NFS3_OK',
                 {
-                    {%% wcc_data
-                        {false, void}, %% pre_op_attr
-                        {false, void}  %% post_op_attr
-                    }
+                    ?SIMPLENFS_WCC_EMPTY
                 }}, 
                 State};
         {error, Reason} ->
@@ -588,10 +553,7 @@ nfsproc3_rmdir_3({{{Dir}, Name}} = _1, Clnt, #state{debug = Debug} = State) ->
             {reply, 
                 {'NFS3ERR_IO',
                 {
-                    {%% wcc_data
-                        {false, void}, %% pre_op_attr
-                        {false, void}  %% post_op_attr
-                    }
+                    ?SIMPLENFS_WCC_EMPTY
                 }}, 
                 State}
     end.
@@ -608,14 +570,8 @@ nfsproc3_rename_3({{{SrcDir}, SrcName}, {{DstDir}, DstName}} =_1, Clnt, #state{d
             {reply, 
                 {'NFS3_OK',
                 {
-                    {%% wcc_data(src)
-                        {false, void}, %% pre_op_attr
-                        {false, void}  %% post_op_attr
-                    },
-                    {%% wcc_data(src)
-                        {false, void}, %% pre_op_attr
-                        {false, void}  %% post_op_attr
-                    }
+                    ?SIMPLENFS_WCC_EMPTY, %% src
+                    ?SIMPLENFS_WCC_EMPTY  %% dst
                 }}, 
                 State};
         {error, Reason} ->
@@ -623,14 +579,8 @@ nfsproc3_rename_3({{{SrcDir}, SrcName}, {{DstDir}, DstName}} =_1, Clnt, #state{d
             {reply, 
                 {'NFS3ERR_IO',
                 {
-                    {%% wcc_data(src)
-                        {false, void}, %% pre_op_attr
-                        {false, void}  %% post_op_attr
-                    },
-                    {%% wcc_data(src)
-                        {false, void}, %% pre_op_attr
-                        {false, void}  %% post_op_attr
-                    }
+                    ?SIMPLENFS_WCC_EMPTY, %% src
+                    ?SIMPLENFS_WCC_EMPTY  %% dst
                 }}, 
                 State}
     end.
@@ -644,10 +594,7 @@ nfsproc3_link_3(_1, Clnt, #state{debug = Debug} = State) ->
         {'NFS3_NG',
         {
             {false, void}, %% post_op_attr
-            {%% wcc_data(new)
-                {false, void}, %% pre_op_attr
-                {false, void}  %% post_op_attr
-            }
+            ?SIMPLENFS_WCC_EMPTY
         }}, 
         State}.
  
@@ -786,10 +733,7 @@ nfsproc3_commit_3(_1, Clnt, #state{debug = Debug} = State) ->
     {reply, 
         {'NFS3_OK',
         {
-            {%% wcc_data
-                {false, void}, %% pre_op_attr
-                {false, void}  %% post_op_attr
-            },
+            ?SIMPLENFS_WCC_EMPTY,
             State#state.write_verf %% write verfier
         }}, 
         State}.
