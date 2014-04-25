@@ -297,17 +297,53 @@ nfsproc3_readlink_3(_1, Clnt, State) ->
         }}, 
         State}.
  
-nfsproc3_read_3(_1, Clnt, State) ->
+nfsproc3_read_3({{Path}, Offset, Count} =_1, Clnt, State) ->
     io:format(user, "[read]args:~p client:~p~n",[_1, Clnt]),
-    {reply, 
-        {'NFS3_OK',
-        {
-            {false, void}, %% post_op_attr for obj
-            11, %% count read bytes
-            true, %% eof
-            <<"hello world">>
-        }}, 
-        State}.
+    case file:open(Path, [read, binary, raw]) of
+        {ok, IoDev} ->
+            try
+                case file:pread(IoDev, Offset, Count) of
+                    {ok, Data} ->
+                        {reply, 
+                            {'NFS3_OK',
+                            {
+                                {false, void}, %% post_op_attr for obj
+                                Count,         %% count read bytes
+                                false,         %% eof
+                                Data
+                            }}, 
+                            State};
+                    eof ->
+                        {reply, 
+                            {'NFS3_OK',
+                            {
+                                {false, void}, %% post_op_attr for obj
+                                0,             %% count read bytes
+                                true,          %% eof
+                                <<>>
+                            }}, 
+                            State};
+                    {error, Reason} ->
+                        io:format(user, "[read]error reason:~p~n",[Reason]),
+                        {reply, 
+                            {'NFS3ERR_IO',
+                            {
+                                {false, void} %% post_op_attr for obj
+                            }}, 
+                            State}
+                end
+            after
+                file:close(IoDev)
+            end;
+        {error, Reason} ->
+            io:format(user, "[read]open error reason:~p~n",[Reason]),
+            {reply, 
+                {'NFS3ERR_IO',
+                {
+                    {false, void} %% post_op_attr for obj
+                }}, 
+                State} 
+    end.
  
 nfsproc3_write_3({{Path}, Offset, Count, _HowStable, Data} = _1, Clnt, State) ->
     io:format(user, "[write]args:~p client:~p~n",[_1, Clnt]),
