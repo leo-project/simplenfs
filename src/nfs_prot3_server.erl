@@ -29,9 +29,14 @@
     filelist  :: list(file:filename_all()),
     pos       :: pos_integer()
 }).
- 
+
+-record(state, {
+    write_verf :: binary() %% to be consistent during a single boot session
+}).
+
 init(_Args) ->
-    {ok, void}.
+    State = #state{write_verf = crypto:rand_bytes(8)},
+    {ok, State}.
  
 handle_call(Req, _From, S) ->
     io:format(user, "[handle_call]req:~p from:~p~n",[Req, _From]),
@@ -259,7 +264,7 @@ nfsproc3_lookup_3({{{Dir}, Name}} = _1, Clnt, State) ->
                 {'NFS3_OK',
                 {
                     {Path}, %% pre_op_attr
-                    file_info2fattr3(FileInfo), %% post_op_attr for obj
+                    {true, file_info2fattr3(FileInfo)}, %% post_op_attr for obj
                     {false, void}  %% post_op_attr for dir
                 }}, 
                 State};
@@ -304,26 +309,55 @@ nfsproc3_read_3(_1, Clnt, State) ->
         }}, 
         State}.
  
-nfsproc3_write_3(_1, Clnt, State) ->
+nfsproc3_write_3({{Path}, Offset, Count, _HowStable, Data} = _1, Clnt, State) ->
     io:format(user, "[write]args:~p client:~p~n",[_1, Clnt]),
-    {reply, 
-        {'NFS3_NG',
-        {
-            {%% wcc_data
-                {false, void}, %% pre_op_attr
-                {false, void}  %% post_op_attr
-            }
-        }}, 
-        State}.
+    case file:open(Path, [read, write, binary, raw]) of
+        {ok, IoDev} ->
+            try
+                case file:pwrite(IoDev, Offset, Data) of
+                    ok ->
+                        {reply, 
+                            {'NFS3_OK',
+                            {
+                                {%% wcc_data
+                                    {false, void}, %% pre_op_attr
+                                    {false, void}  %% post_op_attr
+                                },
+                                Count,
+                                'DATA_SYNC',
+                                State#state.write_verf
+                            }}, 
+                            State};
+                    {error, Reason} ->
+                        io:format(user, "[write]error file:~p reason:~p~n",[Path ,Reason]),
+                        {reply, 
+                            {'NFS3ERR_IO',
+                            {
+                                {%% wcc_data
+                                    {false, void}, %% pre_op_attr
+                                    {false, void}  %% post_op_attr
+                                }
+                            }}, 
+                            State}
+                end
+            after
+                file:close(IoDev)
+            end;
+        {error, Reason} ->
+            io:format(user, "[write]open error reason:~p~n",[Reason]),
+            {reply, 
+                {'NFS3ERR_IO',
+                {
+                    {%% wcc_data
+                        {false, void}, %% pre_op_attr
+                        {false, void}  %% post_op_attr
+                    }
+                }}, 
+                State}
+    end.
+    
  
-nfsproc3_create_3({{{Dir}, Name}, {CreateMode,
-                    {Mode,
-                     UID,
-                     GID,
-                     _,
-                     ATime,
-                     MTime
-                    }}} = _1, Clnt, State) ->
+nfsproc3_create_3({{{Dir}, Name}, {CreateMode, _How}} = _1, Clnt, State) ->
     io:format(user, "[create]args:~p client:~p~n",[_1, Clnt]),
     OpenModes = case CreateMode of
         'UNCHECKED' ->
@@ -335,37 +369,17 @@ nfsproc3_create_3({{{Dir}, Name}, {CreateMode,
     case file:open(FilePath, OpenModes) of
         {ok, IoDev} ->
             catch file:close(IoDev),
-            FileInfo = #file_info{
-                mode = sattr_mode2file_info(Mode),
-                uid  = sattr_uid2file_info(UID),
-                gid  = sattr_gid2file_info(GID),
-                atime = sattr_atime2file_info(ATime),
-                mtime = sattr_mtime2file_info(MTime)
-            },
-            case file:write_file_info(FilePath, FileInfo, [{time, posix}]) of
-                ok ->
-                    {reply, 
-                        {'NFS3_OK',
-                        {
-                            {true, {FilePath}}, %% post_op file handle
-                            {false, void},      %% post_op_attr
-                            {%% wcc_data
-                                {false, void}, %% pre_op_attr
-                                {false, void}  %% post_op_attr
-                            }
-                        }}, 
-                        State};
-                {error, _} ->
-                    {reply, 
-                        {'NFS3ERR_IO',
-                        {
-                            {%% wcc_data
-                                {false, void}, %% pre_op_attr
-                                {false, void}  %% post_op_attr
-                            }
-                        }}, 
-                        State}
-            end;
+            {reply, 
+                {'NFS3_OK',
+                {
+                    {true, {FilePath}}, %% post_op file handle
+                    {false, void},      %% post_op_attr
+                    {%% wcc_data
+                        {false, void}, %% pre_op_attr
+                        {false, void}  %% post_op_attr
+                    }
+                }}, 
+                State};
         {error, Reason} ->
             io:format(user, "[create]error reason:~p~n",[Reason]),
             {reply, 
@@ -596,7 +610,7 @@ nfsproc3_commit_3(_1, Clnt, State) ->
                 {false, void}, %% pre_op_attr
                 {false, void}  %% post_op_attr
             },
-            <<"12345678">> %% write verfier
+            State#state.write_verf %% write verfier
         }}, 
         State}.
 
