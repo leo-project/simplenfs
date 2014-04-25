@@ -429,19 +429,36 @@ nfsproc3_create_3({{{Dir}, Name}, {CreateMode, _How}} = _1, Clnt, State) ->
                 State}
     end.
  
-nfsproc3_mkdir_3(_1, Clnt, State) ->
+nfsproc3_mkdir_3({{{Dir}, Name}, _How} = _1, Clnt, State) ->
     io:format(user, "[mkdir]args:~p client:~p~n",[_1, Clnt]),
-    {reply, 
-        {'NFS3_OK',
-        {
-            {false, void}, %% post_op file handle
-            {false, void}, %% post_op_attr
-            {%% wcc_data
-                {false, void}, %% pre_op_attr
-                {false, void}  %% post_op_attr
-            }
-        }}, 
-        State}.
+    DirPath = filename:join(Dir, Name),
+    case file:make_dir(DirPath) of
+        ok ->
+            {reply, 
+                {'NFS3_OK',
+                {
+                    {false, void}, %% post_op file handle
+                    {false, void}, %% post_op_attr
+                    {%% wcc_data
+                        {false, void}, %% pre_op_attr
+                        {false, void}  %% post_op_attr
+                    }
+                }}, 
+                State};
+        {error, Reason} ->
+            io:format(user, "[mkdir]error reason:~p~n",[Reason]),
+            {reply, 
+                {'NFS3ERR_IO',
+                {
+                    {false, void}, %% post_op file handle
+                    {false, void}, %% post_op_attr
+                    {%% wcc_data
+                        {false, void}, %% pre_op_attr
+                        {false, void}  %% post_op_attr
+                    }
+                }}, 
+                State}
+    end.
  
 nfsproc3_symlink_3(_1, Clnt, State) ->
     io:format(user, "[symlink]args:~p client:~p~n",[_1, Clnt]),
@@ -471,7 +488,7 @@ nfsproc3_mknod_3(_1, Clnt, State) ->
         }}, 
         State}.
  
-nfsproc3_remove_3({{{Dir}, Name}} =_1, Clnt, State) ->
+nfsproc3_remove_3({{{Dir}, Name}} = _1, Clnt, State) ->
     io:format(user, "[remove]args:~p client:~p~n",[_1, Clnt]),
     FilePath = filename:join(Dir, Name),
     case file:delete(FilePath) of
@@ -498,17 +515,32 @@ nfsproc3_remove_3({{{Dir}, Name}} =_1, Clnt, State) ->
                 State}
     end.
          
-nfsproc3_rmdir_3(_1, Clnt, State) ->
+nfsproc3_rmdir_3({{{Dir}, Name}} = _1, Clnt, State) ->
     io:format(user, "[rmdir]args:~p client:~p~n",[_1, Clnt]),
-    {reply, 
-        {'NFS3_OK',
-        {
-            {%% wcc_data
-                {false, void}, %% pre_op_attr
-                {false, void}  %% post_op_attr
-            }
-        }}, 
-        State}.
+    DirPath = filename:join(Dir, Name),
+    case file:del_dir(DirPath) of
+        ok ->
+            {reply, 
+                {'NFS3_OK',
+                {
+                    {%% wcc_data
+                        {false, void}, %% pre_op_attr
+                        {false, void}  %% post_op_attr
+                    }
+                }}, 
+                State};
+        {error, Reason} ->
+            io:format(user, "[rmdir]reason:~p~n",[Reason]),
+            {reply, 
+                {'NFS3ERR_IO',
+                {
+                    {%% wcc_data
+                        {false, void}, %% pre_op_attr
+                        {false, void}  %% post_op_attr
+                    }
+                }}, 
+                State}
+    end.
  
 nfsproc3_rename_3({{{SrcDir}, SrcName}, {{DstDir}, DstName}} =_1, Clnt, State) ->
     io:format(user, "[rename]args:~p client:~p~n",[_1, Clnt]),
@@ -547,7 +579,7 @@ nfsproc3_rename_3({{{SrcDir}, SrcName}, {{DstDir}, DstName}} =_1, Clnt, State) -
     end.
  
 nfsproc3_link_3(_1, Clnt, State) ->
-    io:format(user, "[rmdir]args:~p client:~p~n",[_1, Clnt]),
+    io:format(user, "[link]args:~p client:~p~n",[_1, Clnt]),
     {reply, 
         {'NFS3_NG',
         {
