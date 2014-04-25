@@ -510,21 +510,41 @@ nfsproc3_rmdir_3(_1, Clnt, State) ->
         }}, 
         State}.
  
-nfsproc3_rename_3(_1, Clnt, State) ->
+nfsproc3_rename_3({{{SrcDir}, SrcName}, {{DstDir}, DstName}} =_1, Clnt, State) ->
     io:format(user, "[rename]args:~p client:~p~n",[_1, Clnt]),
-    {reply, 
-        {'NFS3_OK',
-        {
-            {%% wcc_data(old)
-                {false, void}, %% pre_op_attr
-                {false, void}  %% post_op_attr
-            },
-            {%% wcc_data(new)
-                {false, void}, %% pre_op_attr
-                {false, void}  %% post_op_attr
-            }
-        }}, 
-        State}.
+    Src = filename:join(SrcDir, SrcName),
+    Dst = filename:join(DstDir, DstName),
+    case file:rename(Src, Dst) of
+        ok ->
+            {reply, 
+                {'NFS3_OK',
+                {
+                    {%% wcc_data(src)
+                        {false, void}, %% pre_op_attr
+                        {false, void}  %% post_op_attr
+                    },
+                    {%% wcc_data(src)
+                        {false, void}, %% pre_op_attr
+                        {false, void}  %% post_op_attr
+                    }
+                }}, 
+                State};
+        {error, Reason} ->
+            io:format(user, "[rename]reason:~p~n",[Reason]),
+            {reply, 
+                {'NFS3ERR_IO',
+                {
+                    {%% wcc_data(src)
+                        {false, void}, %% pre_op_attr
+                        {false, void}  %% post_op_attr
+                    },
+                    {%% wcc_data(src)
+                        {false, void}, %% pre_op_attr
+                        {false, void}  %% post_op_attr
+                    }
+                }}, 
+                State}
+    end.
  
 nfsproc3_link_3(_1, Clnt, State) ->
     io:format(user, "[rmdir]args:~p client:~p~n",[_1, Clnt]),
