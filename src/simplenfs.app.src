@@ -8,7 +8,9 @@
   {applications, [
                   kernel,
                   stdlib,
-                  crypto
+                  crypto,
+                  rpc_server,
+                  ranch 
                  ]},
   {mod, {simplenfs, []}},
   {env, []}

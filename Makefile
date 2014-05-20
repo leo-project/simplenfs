@@ -19,7 +19,6 @@ compile: $(REBAR)
 
 gen_rpc: deps
 	(cd deps/erpcgen/;make rpc)
-	cp deps/erpcgen/rpc/*.[he]rl src/
 
 gen_nfs: gen_rpc
 	./deps/erpcgen/priv/erpcgen -a [svc_callback,xdr,hrl] src/nfs_prot3.x

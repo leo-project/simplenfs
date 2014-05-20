@@ -108,7 +108,7 @@ mountproc_mnt_3(MountDir0, Clnt, #state{debug = Debug} = State) ->
     MountDir = formalize_path(MountDir0),
     case filelib:is_dir(MountDir) of
         true ->
-            {ok, {Addr, _Port}}= rpc_server:client_ip(Clnt),
+            {ok, {Addr, _Port}}= rpc_proto:client_ip(Clnt),
             mount_add_entry(MountDir, Addr),
             %% @todo gen nfs3_fh
             {reply, {'MNT3_OK', {MountDir, []}}, State};
@@ -129,7 +129,7 @@ mountproc_umnt_3(MountDir0, Clnt, #state{debug = Debug} = State) ->
         false -> void
     end,
     MountDir = formalize_path(MountDir0),
-    {ok, {Addr, _Port}}= rpc_server:client_ip(Clnt),
+    {ok, {Addr, _Port}}= rpc_proto:client_ip(Clnt),
     catch mount_del_entry(MountDir, Addr),
     {reply, void, State}.
  
