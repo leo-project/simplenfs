@@ -694,12 +694,12 @@ nfsproc3_fsinfo_3(_1, Clnt, #state{debug = Debug} = State) ->
         {'NFS3_OK',
         {
             {false, void}, %% post_op_attr
-            4096, %% rtmax
-            4096, %% rtperf
-            1,    %% rtmult
-            4096, %% wtmax
-            4096, %% wtperf
-            1,    %% wtmult
+            32768, %% rtmax
+            32768, %% rtperf
+            8,    %% rtmult
+            32768, %% wtmax
+            32768, %% wtperf
+            8,    %% wtmult
             4096, %% dperf
             1024 * 1024 * 1024 * 4, %% max size of a file
             {1, 0}, %% time_delta
